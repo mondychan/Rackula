@@ -179,18 +179,23 @@
 	.device-library-sheet {
 		display: flex;
 		flex-direction: column;
-		height: 100%;
-		overflow: hidden;
+		gap: var(--space-3);
 	}
 
-	/* Sticky header area */
+	/* Sticky header area - sticks to top of scroll container */
 	.sticky-header {
-		flex-shrink: 0;
+		position: sticky;
+		top: 0;
+		z-index: 1;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
 		background: var(--colour-bg);
 		padding-bottom: var(--space-2);
+		/* Negative margin to extend bg to edges, compensate with padding */
+		margin: 0 -1.5rem;
+		padding-left: 1.5rem;
+		padding-right: 1.5rem;
 	}
 
 	.sheet-header {
@@ -263,16 +268,11 @@
 		color: var(--colour-primary);
 	}
 
-	/* Device list - scrollable area */
+	/* Device list */
 	.device-list {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-		flex: 1;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		/* Add some padding at bottom for better scrolling */
-		padding-bottom: var(--space-4);
 	}
 
 	.device-item {
