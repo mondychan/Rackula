@@ -164,7 +164,9 @@
 	.bottom-sheet {
 		position: relative;
 		width: 100%;
-		max-height: 80vh;
+		/* Extend almost to top, leaving space for toolbar (~60px) */
+		max-height: calc(100vh - 60px);
+		max-height: calc(100dvh - 60px);
 		background: var(--colour-bg);
 		border-top-left-radius: 1rem;
 		border-top-right-radius: 1rem;

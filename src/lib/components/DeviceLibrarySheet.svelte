@@ -112,35 +112,38 @@
 
 <BottomSheet bind:open {onclose}>
 	<div class="device-library-sheet">
-		<!-- Header with search -->
-		<div class="sheet-header">
-			<h2 class="sheet-title">Add Device</h2>
-			<input
-				type="search"
-				class="search-input"
-				placeholder="Search devices..."
-				bind:value={searchQuery}
-				autocomplete="off"
-				autocorrect="off"
-				autocapitalize="off"
-				spellcheck="false"
-			/>
+		<!-- Sticky header area (doesn't scroll) -->
+		<div class="sticky-header">
+			<!-- Header with search -->
+			<div class="sheet-header">
+				<h2 class="sheet-title">Add Device</h2>
+				<input
+					type="search"
+					class="search-input"
+					placeholder="Search devices..."
+					bind:value={searchQuery}
+					autocomplete="off"
+					autocorrect="off"
+					autocapitalize="off"
+					spellcheck="false"
+				/>
+			</div>
+
+			<!-- Category filter pills -->
+			<div class="category-pills">
+				{#each categories as category (category.id)}
+					<button
+						class="category-pill"
+						class:active={selectedCategory === category.id}
+						onclick={() => (selectedCategory = category.id)}
+					>
+						{category.label}
+					</button>
+				{/each}
+			</div>
 		</div>
 
-		<!-- Category filter pills -->
-		<div class="category-pills">
-			{#each categories as category (category.id)}
-				<button
-					class="category-pill"
-					class:active={selectedCategory === category.id}
-					onclick={() => (selectedCategory = category.id)}
-				>
-					{category.label}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Device list -->
+		<!-- Device list (scrolls independently) -->
 		<div class="device-list">
 			{#if filteredDevices.length === 0}
 				<div class="empty-state">
@@ -176,8 +179,18 @@
 	.device-library-sheet {
 		display: flex;
 		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
+	}
+
+	/* Sticky header area */
+	.sticky-header {
+		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
 		gap: var(--space-3);
-		min-height: 50vh;
+		background: var(--colour-bg);
+		padding-bottom: var(--space-2);
 	}
 
 	.sheet-header {
@@ -218,7 +231,6 @@
 		display: flex;
 		gap: var(--space-2);
 		overflow-x: auto;
-		padding-bottom: var(--space-2);
 		scrollbar-width: none;
 		-ms-overflow-style: none;
 	}
@@ -251,13 +263,16 @@
 		color: var(--colour-primary);
 	}
 
-	/* Device list */
+	/* Device list - scrollable area */
 	.device-list {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-		overflow-y: auto;
 		flex: 1;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		/* Add some padding at bottom for better scrolling */
+		padding-bottom: var(--space-4);
 	}
 
 	.device-item {
