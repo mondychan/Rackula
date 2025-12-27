@@ -3,6 +3,7 @@
   Main content area displaying single rack
   v0.1.1: Single-rack mode - centered layout
   Uses panzoom for zoom and pan functionality
+  v0.6: Added tap-to-place support for mobile editing
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -10,8 +11,10 @@
 	import { getLayoutStore } from '$lib/stores/layout.svelte';
 	import { getSelectionStore } from '$lib/stores/selection.svelte';
 	import { getCanvasStore, ZOOM_MIN, ZOOM_MAX } from '$lib/stores/canvas.svelte';
+	import { getPlacementStore } from '$lib/stores/placement.svelte';
 	import { getUIStore } from '$lib/stores/ui.svelte';
 	import { debug } from '$lib/utils/debug';
+	import { useLongPress } from '$lib/utils/gestures';
 	import RackDualView from './RackDualView.svelte';
 	import WelcomeScreen from './WelcomeScreen.svelte';
 
@@ -59,6 +62,7 @@
 	const layoutStore = getLayoutStore();
 	const selectionStore = getSelectionStore();
 	const canvasStore = getCanvasStore();
+	const placementStore = getPlacementStore();
 	const uiStore = getUIStore();
 
 	// Single-rack mode: direct access to rack
@@ -88,6 +92,13 @@
 				// Allow panning only when not interacting with drag targets
 				beforeMouseDown: (e: MouseEvent) => {
 					const target = e.target as HTMLElement;
+
+					// Priority 0: Block ALL panning during placement mode
+					// User needs to tap to place, not accidentally pan
+					if (placementStore.isActive) {
+						debug.log('beforeMouseDown: blocking pan for placement mode');
+						return true; // Block panning
+					}
 
 					// Priority 1: Check if target or any parent is draggable (device drag-drop)
 					// For SVGElements, we need to check the draggable attribute differently
@@ -202,6 +213,34 @@
 	// NOTE: handleRackViewChange removed in v0.4 (dual-view mode - always show both)
 	// Restore in v0.3 when multi-rack support returns
 
+	/**
+	 * Handle device placement via tap-to-place (mobile)
+	 */
+	function handleDevicePlace(
+		event: CustomEvent<{ rackId: string; slug: string; position: number; face: string }>
+	) {
+		const { rackId, slug, position, face } = event.detail;
+		layoutStore.placeDevice(rackId, slug, position, face as 'front' | 'rear' | 'both');
+
+		// Also forward as a devicedrop event for consistency
+		ondevicedrop?.(
+			new CustomEvent('devicedrop', {
+				detail: { rackId, slug, position, face: face as 'front' | 'rear' }
+			})
+		);
+	}
+
+	// Set up long-press on canvas to cancel placement mode
+	$effect(() => {
+		if (canvasContainer && placementStore.isActive) {
+			const cleanup = useLongPress(canvasContainer, () => {
+				debug.log('Long-press on canvas: cancelling placement mode');
+				placementStore.cancelPlacement();
+			});
+			return cleanup;
+		}
+	});
+
 	// Screen reader accessible description of rack contents
 	const rackDescription = $derived.by(() => {
 		if (!rack) return 'No rack configured';
@@ -265,6 +304,7 @@
 					ondevicedrop={(e) => handleDeviceDrop(e)}
 					ondevicemove={(e) => handleDeviceMove(e)}
 					ondevicemoverack={(e) => handleDeviceMoveRack(e)}
+					ondeviceplace={(e) => handleDevicePlace(e)}
 				/>
 			</div>
 		</div>

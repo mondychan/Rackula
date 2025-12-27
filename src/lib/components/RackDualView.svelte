@@ -41,6 +41,10 @@
 				targetPosition: number;
 			}>
 		) => void;
+		/** Callback when device is placed via tap-to-place (mobile) */
+		ondeviceplace?: (
+			event: CustomEvent<{ rackId: string; slug: string; position: number; face: string }>
+		) => void;
 	}
 
 	let {
@@ -55,7 +59,8 @@
 		ondeviceselect,
 		ondevicedrop,
 		ondevicemove,
-		ondevicemoverack
+		ondevicemoverack,
+		ondeviceplace
 	}: Props = $props();
 
 	// Now using faceFilter prop instead of virtual racks
@@ -134,6 +139,7 @@
 				ondevicedrop={handleFrontDeviceDrop}
 				{ondevicemove}
 				{ondevicemoverack}
+				{ondeviceplace}
 			/>
 		</div>
 
@@ -155,6 +161,7 @@
 				ondevicedrop={handleRearDeviceDrop}
 				{ondevicemove}
 				{ondevicemoverack}
+				{ondeviceplace}
 			/>
 		</div>
 	</div>

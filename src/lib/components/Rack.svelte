@@ -1,11 +1,12 @@
 <!--
   Rack SVG Component
   Renders a rack visualization with U labels, grid lines, and selection state
-  Accepts device drops for placement
+  Accepts device drops for placement (drag-and-drop on desktop, tap-to-place on mobile)
 -->
 <script lang="ts">
 	import type { Rack as RackType, DeviceType, DisplayMode } from '$lib/types';
 	import RackDevice from './RackDevice.svelte';
+	import GhostDevice from './GhostDevice.svelte';
 	import {
 		parseDragData,
 		calculateDropPosition,
@@ -15,10 +16,12 @@
 	} from '$lib/utils/dragdrop';
 	import { screenToSVG } from '$lib/utils/coordinates';
 	import { getCanvasStore } from '$lib/stores/canvas.svelte';
+	import { getPlacementStore } from '$lib/stores/placement.svelte';
 	import { getBlockedSlots } from '$lib/utils/blocked-slots';
 	import { isChristmas } from '$lib/utils/christmas';
 
 	const canvasStore = getCanvasStore();
+	const placementStore = getPlacementStore();
 
 	// Christmas easter egg
 	const showChristmasHats = isChristmas();
@@ -56,6 +59,10 @@
 				targetPosition: number;
 			}>
 		) => void;
+		/** Callback when device is placed via tap-to-place (mobile) */
+		ondeviceplace?: (
+			event: CustomEvent<{ rackId: string; slug: string; position: number; face: string }>
+		) => void;
 	}
 
 	let {
@@ -73,7 +80,8 @@
 		ondeviceselect,
 		ondevicedrop,
 		ondevicemove,
-		ondevicemoverack
+		ondevicemoverack,
+		ondeviceplace
 	}: Props = $props();
 
 	// Track which device is being dragged (for internal moves)
@@ -342,6 +350,172 @@
 
 	// NOTE: Rack drag handle for reordering removed in v0.1.1 (single-rack mode)
 	// Restore in v0.3 when multi-rack support returns
+
+	// =============================================================================
+	// Tap-to-Place Touch Handlers (Mobile)
+	// =============================================================================
+
+	/**
+	 * Calculate U position from touch/pointer coordinates
+	 */
+	function calculatePositionFromTouch(
+		svg: SVGSVGElement,
+		clientX: number,
+		clientY: number
+	): number {
+		const svgCoords = screenToSVG(svg, clientX, clientY);
+		const mouseY = svgCoords.y - RACK_PADDING;
+		return calculateDropPosition(mouseY, rack.height, U_HEIGHT, RACK_PADDING);
+	}
+
+	/**
+	 * Handle touch/pointer move during placement mode
+	 * Updates the ghost preview position
+	 */
+	function handlePlacementMove(event: TouchEvent | PointerEvent) {
+		if (!placementStore.isActive || !placementStore.device) return;
+
+		// Get touch/pointer coordinates
+		let clientX: number, clientY: number;
+		if ('touches' in event) {
+			const touch = event.touches[0];
+			if (!touch) return;
+			clientX = touch.clientX;
+			clientY = touch.clientY;
+		} else {
+			clientX = event.clientX;
+			clientY = event.clientY;
+		}
+
+		const svg = event.currentTarget as SVGSVGElement;
+		const targetU = calculatePositionFromTouch(svg, clientX, clientY);
+
+		// Check if position is valid using existing drop feedback logic
+		const feedback = getDropFeedback(
+			rack,
+			deviceLibrary,
+			placementStore.device.u_height,
+			targetU,
+			undefined, // No exclusion for new placements
+			effectiveFaceFilter,
+			placementStore.device.is_full_depth ?? true
+		);
+
+		placementStore.updatePreview(targetU, feedback === 'valid', feedback === 'blocked');
+	}
+
+	/**
+	 * Handle touch/tap end during placement mode
+	 * Attempts to place the device at the current position
+	 */
+	function handlePlacementEnd(event: TouchEvent | PointerEvent) {
+		if (!placementStore.isActive || !placementStore.device) return;
+
+		// Get touch/pointer coordinates for final position
+		let clientX: number, clientY: number;
+		if ('changedTouches' in event) {
+			const touch = event.changedTouches[0];
+			if (!touch) return;
+			clientX = touch.clientX;
+			clientY = touch.clientY;
+		} else {
+			clientX = event.clientX;
+			clientY = event.clientY;
+		}
+
+		const svg = event.currentTarget as SVGSVGElement;
+		const targetU = calculatePositionFromTouch(svg, clientX, clientY);
+
+		// Final validation
+		const feedback = getDropFeedback(
+			rack,
+			deviceLibrary,
+			placementStore.device.u_height,
+			targetU,
+			undefined,
+			effectiveFaceFilter,
+			placementStore.device.is_full_depth ?? true
+		);
+
+		if (feedback === 'valid') {
+			// Haptic feedback on successful placement
+			if (navigator.vibrate) {
+				navigator.vibrate(50);
+			}
+
+			// Fire the placement event
+			ondeviceplace?.(
+				new CustomEvent('deviceplace', {
+					detail: {
+						rackId: RACK_ID,
+						slug: placementStore.device.slug,
+						position: targetU,
+						face: placementStore.targetFace
+					}
+				})
+			);
+
+			// Exit placement mode
+			placementStore.cancelPlacement();
+		} else {
+			// Haptic feedback for invalid placement (error pattern)
+			if (navigator.vibrate) {
+				navigator.vibrate([25, 50, 25]);
+			}
+		}
+	}
+
+	/**
+	 * Handle click/tap on rack during placement mode
+	 * For non-touch devices or simple taps
+	 */
+	function handlePlacementClick(event: MouseEvent) {
+		if (!placementStore.isActive || !placementStore.device) return;
+
+		event.preventDefault();
+		event.stopPropagation();
+
+		const svg = event.currentTarget as SVGSVGElement;
+		const targetU = calculatePositionFromTouch(svg, event.clientX, event.clientY);
+
+		// Validate placement
+		const feedback = getDropFeedback(
+			rack,
+			deviceLibrary,
+			placementStore.device.u_height,
+			targetU,
+			undefined,
+			effectiveFaceFilter,
+			placementStore.device.is_full_depth ?? true
+		);
+
+		if (feedback === 'valid') {
+			// Haptic feedback on successful placement
+			if (navigator.vibrate) {
+				navigator.vibrate(50);
+			}
+
+			// Fire the placement event
+			ondeviceplace?.(
+				new CustomEvent('deviceplace', {
+					detail: {
+						rackId: RACK_ID,
+						slug: placementStore.device.slug,
+						position: targetU,
+						face: placementStore.targetFace
+					}
+				})
+			);
+
+			// Exit placement mode
+			placementStore.cancelPlacement();
+		} else {
+			// Haptic feedback for invalid placement
+			if (navigator.vibrate) {
+				navigator.vibrate([25, 50, 25]);
+			}
+		}
+	}
 </script>
 
 <div
@@ -357,15 +531,20 @@
 	<!-- NOTE: Drag handle removed in v0.1.1 (single-rack mode) -->
 	<svg
 		class="rack-svg"
+		class:placement-mode={placementStore.isActive}
 		width={RACK_WIDTH}
 		height={viewBoxHeight + NAME_Y_OFFSET}
 		viewBox="0 -{NAME_Y_OFFSET} {RACK_WIDTH} {viewBoxHeight + NAME_Y_OFFSET}"
 		role="img"
-		aria-label="{rack.name}, {rack.height}U rack{selected ? ', selected' : ''}"
+		aria-label="{rack.name}, {rack.height}U rack{selected ? ', selected' : ''}{placementStore.isActive ? ', placement mode active' : ''}"
 		ondragover={handleDragOver}
 		ondragenter={handleDragEnter}
 		ondragleave={handleDragLeave}
 		ondrop={handleDrop}
+		ontouchmove={handlePlacementMove}
+		ontouchend={handlePlacementEnd}
+		onpointermove={handlePlacementMove}
+		onclick={placementStore.isActive ? handlePlacementClick : undefined}
 		style="overflow: visible"
 	>
 		<!-- Rack background (interior) -->
@@ -536,7 +715,7 @@
 			{/each}
 		</g>
 
-		<!-- Drop preview -->
+		<!-- Drop preview (drag-and-drop) -->
 		{#if dropPreview}
 			<rect
 				x={RAIL_WIDTH + 2}
@@ -550,6 +729,21 @@
 				rx="2"
 				ry="2"
 			/>
+		{/if}
+
+		<!-- Ghost device preview (tap-to-place mobile) -->
+		{#if placementStore.isActive && placementStore.device && placementStore.previewPosition !== null}
+			<g transform="translate(0, {RACK_PADDING + RAIL_WIDTH})">
+				<GhostDevice
+					device={placementStore.device}
+					position={placementStore.previewPosition}
+					rackHeight={rack.height}
+					rackWidth={RACK_WIDTH}
+					face={placementStore.targetFace}
+					isValid={placementStore.isValid}
+					isBlocked={placementStore.isBlocked}
+				/>
+			</g>
 		{/if}
 
 		<!-- Rack name at top (rendered last so it's on top) - hidden when hideRackName=true -->
@@ -765,5 +959,15 @@
 			animation: none;
 			filter: drop-shadow(0 0 8px hsl(300, 100%, 50%));
 		}
+	}
+
+	/* Placement mode: visual indicator that rack is ready for tap */
+	.rack-svg.placement-mode {
+		cursor: crosshair;
+	}
+
+	.rack-svg.placement-mode .rack-interior {
+		fill: var(--colour-dnd-valid-bg);
+		transition: fill var(--duration-fast) var(--ease-out);
 	}
 </style>

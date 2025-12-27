@@ -21,6 +21,10 @@
   import HelpPanel from "$lib/components/HelpPanel.svelte";
   import BottomSheet from "$lib/components/BottomSheet.svelte";
   import DeviceDetails from "$lib/components/DeviceDetails.svelte";
+  import DeviceLibrarySheet from "$lib/components/DeviceLibrarySheet.svelte";
+  import MobileFAB from "$lib/components/MobileFAB.svelte";
+  import PlacementIndicator from "$lib/components/PlacementIndicator.svelte";
+  import { getPlacementStore } from "$lib/stores/placement.svelte";
   import {
     getShareParam,
     clearShareParam,
@@ -71,6 +75,7 @@
   const toastStore = getToastStore();
   const imageStore = getImageStore();
   const viewportStore = getViewportStore();
+  const placementStore = getPlacementStore();
 
   // Dialog state
   let newRackFormOpen = $state(false);
@@ -90,6 +95,9 @@
   // Mobile bottom sheet state
   let bottomSheetOpen = $state(false);
   let selectedDeviceForSheet: number | null = $state(null);
+
+  // Mobile device library sheet state
+  let deviceLibrarySheetOpen = $state(false);
 
   // Party Mode easter egg (triggered by Konami code)
   let partyMode = $state(false);
@@ -733,6 +741,26 @@
     {/if}
   {/if}
 
+  <!-- Mobile device library sheet (tap-to-place) -->
+  {#if viewportStore.isMobile}
+    <DeviceLibrarySheet
+      bind:open={deviceLibrarySheetOpen}
+      onclose={() => (deviceLibrarySheetOpen = false)}
+    />
+
+    <!-- FAB to open device library (hidden during placement mode) -->
+    {#if layoutStore.rackCount > 0}
+      <MobileFAB onclick={() => (deviceLibrarySheetOpen = true)} />
+    {/if}
+
+    <!-- Placement mode indicator -->
+    {#if placementStore.isActive}
+      <div class="mobile-placement-indicator">
+        <PlacementIndicator />
+      </div>
+    {/if}
+  {/if}
+
   <NewRackForm
     open={newRackFormOpen}
     rackCount={layoutStore.rackCount}
@@ -824,6 +852,15 @@
   .app-main.mobile {
     /* Prevent overscroll/bounce on iOS */
     overscroll-behavior: none;
+  }
+
+  /* Mobile placement mode indicator - fixed at bottom of screen above FAB position */
+  .mobile-placement-indicator {
+    position: fixed;
+    bottom: calc(var(--space-6) + 56px + var(--space-4) + env(safe-area-inset-bottom, 0px));
+    left: var(--space-4);
+    right: var(--space-4);
+    z-index: var(--z-fab, 900);
   }
 
   /* Note: Mobile overscroll prevention should be in global styles (index.html or app.css) */
