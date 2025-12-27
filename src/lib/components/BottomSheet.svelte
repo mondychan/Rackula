@@ -165,7 +165,7 @@
 		position: relative;
 		width: 100%;
 		max-height: 80vh;
-		background: var(--color-bg);
+		background: var(--colour-bg);
 		border-top-left-radius: 1rem;
 		border-top-right-radius: 1rem;
 		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
@@ -203,7 +203,7 @@
 	.drag-handle-bar {
 		width: 2.5rem;
 		height: 0.25rem;
-		background: var(--color-text-secondary);
+		background: var(--colour-text-muted);
 		opacity: 0.4;
 		border-radius: 0.125rem;
 	}
@@ -225,7 +225,7 @@
 	}
 
 	.sheet-content::-webkit-scrollbar-thumb {
-		background: var(--color-text-secondary);
+		background: var(--colour-text-muted);
 		opacity: 0.3;
 		border-radius: 0.25rem;
 	}

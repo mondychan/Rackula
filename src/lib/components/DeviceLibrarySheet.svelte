@@ -246,9 +246,9 @@
 	}
 
 	.category-pill.active {
-		background: var(--colour-primary);
+		background: transparent;
 		border-color: var(--colour-primary);
-		color: var(--colour-text-on-primary, white);
+		color: var(--colour-primary);
 	}
 
 	/* Device list */

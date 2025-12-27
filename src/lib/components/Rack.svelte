@@ -216,7 +216,8 @@
 		// Calculate target position from mouse Y using transform-aware coordinates
 		const svg = event.currentTarget as SVGSVGElement;
 		const svgCoords = screenToSVG(svg, event.clientX, event.clientY);
-		const mouseY = svgCoords.y - RACK_PADDING;
+		// Device area starts at RACK_PADDING + RAIL_WIDTH, so subtract both
+		const mouseY = svgCoords.y - RACK_PADDING - RAIL_WIDTH;
 
 		const targetU = calculateDropPosition(mouseY, rack.height, U_HEIGHT, RACK_PADDING);
 
@@ -292,7 +293,8 @@
 		// Calculate target position using transform-aware coordinates
 		const svg = event.currentTarget as SVGSVGElement;
 		const svgCoords = screenToSVG(svg, event.clientX, event.clientY);
-		const mouseY = svgCoords.y - RACK_PADDING;
+		// Device area starts at RACK_PADDING + RAIL_WIDTH, so subtract both
+		const mouseY = svgCoords.y - RACK_PADDING - RAIL_WIDTH;
 
 		const targetU = calculateDropPosition(mouseY, rack.height, U_HEIGHT, RACK_PADDING);
 
@@ -364,7 +366,8 @@
 		clientY: number
 	): number {
 		const svgCoords = screenToSVG(svg, clientX, clientY);
-		const mouseY = svgCoords.y - RACK_PADDING;
+		// Device area starts at RACK_PADDING + RAIL_WIDTH, so subtract both
+		const mouseY = svgCoords.y - RACK_PADDING - RAIL_WIDTH;
 		return calculateDropPosition(mouseY, rack.height, U_HEIGHT, RACK_PADDING);
 	}
 
@@ -437,6 +440,9 @@
 			placementStore.device.is_full_depth ?? true
 		);
 
+		// Update preview to show final position
+		placementStore.updatePreview(targetU, feedback === 'valid', feedback === 'blocked');
+
 		if (feedback === 'valid') {
 			// Haptic feedback on successful placement
 			if (navigator.vibrate) {
@@ -488,6 +494,9 @@
 			effectiveFaceFilter,
 			placementStore.device.is_full_depth ?? true
 		);
+
+		// Always update preview so ghost shows the attempted position
+		placementStore.updatePreview(targetU, feedback === 'valid', feedback === 'blocked');
 
 		if (feedback === 'valid') {
 			// Haptic feedback on successful placement
