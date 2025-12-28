@@ -7,6 +7,13 @@
 	import { getPlacementStore } from '$lib/stores/placement.svelte';
 	import CategoryIcon from './CategoryIcon.svelte';
 
+	interface Props {
+		/** Called when placement is cancelled, with original position info for move operations */
+		oncancel?: (originalInfo: { position: number; face: string } | null) => void;
+	}
+
+	let { oncancel }: Props = $props();
+
 	const placementStore = getPlacementStore();
 
 	// Device display name
@@ -23,7 +30,9 @@
 	});
 
 	function handleCancel() {
-		placementStore.cancelPlacement();
+		const originalInfo = placementStore.cancelPlacement();
+		// Call the oncancel callback with original position info (for move operations)
+		oncancel?.(originalInfo);
 		// Haptic feedback
 		if (navigator.vibrate) {
 			navigator.vibrate(30);

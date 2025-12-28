@@ -662,6 +662,77 @@
     selectionStore.clearSelection();
   }
 
+  // Handle move device on mobile
+  function handleMobileDeviceMove() {
+    if (selectedDeviceForSheet === null || !layoutStore.rack) return;
+
+    const device = layoutStore.rack.devices[selectedDeviceForSheet];
+    if (!device) return;
+
+    const deviceType = layoutStore.device_types.find(dt => dt.slug === device.device_type);
+    if (!deviceType) return;
+
+    // Store device slug for potential restoration on cancel
+    moveDeviceSlug = device.device_type;
+
+    // Store original position and enter move mode
+    placementStore.enterMoveMode(deviceType, device.position, device.face);
+
+    // Remove device from rack temporarily
+    layoutStore.removeDeviceFromRack('rack-0', selectedDeviceForSheet);
+
+    // Close the sheet and clear selection
+    bottomSheetOpen = false;
+    selectedDeviceForSheet = null;
+    selectionStore.clearSelection();
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+  }
+
+  // Handle remove device on mobile
+  function handleMobileDeviceRemove() {
+    if (selectedDeviceForSheet === null || !layoutStore.rack) return;
+
+    layoutStore.removeDeviceFromRack('rack-0', selectedDeviceForSheet);
+
+    // Close the sheet and clear selection
+    bottomSheetOpen = false;
+    selectedDeviceForSheet = null;
+    selectionStore.clearSelection();
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(30);
+    }
+  }
+
+  // Store device info for move restoration (set when entering move mode)
+  let moveDeviceSlug: string | null = $state(null);
+
+  // Handle placement cancellation - restore device if it was a move operation
+  function handlePlacementCancel(originalInfo: { position: number; face: string } | null) {
+    if (originalInfo && moveDeviceSlug) {
+      // Restore device to original position
+      layoutStore.addDeviceToRack(
+        'rack-0',
+        moveDeviceSlug,
+        originalInfo.position,
+        originalInfo.face as 'front' | 'rear' | 'both'
+      );
+    }
+    moveDeviceSlug = null;
+  }
+
+  // Clear move state when placement mode ends (covers successful placement)
+  $effect(() => {
+    if (!placementStore.isActive && moveDeviceSlug) {
+      moveDeviceSlug = null;
+    }
+  });
+
   // Auto-save layout to localStorage with debouncing
   let saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
@@ -716,7 +787,7 @@
       </Sidebar>
     {/if}
 
-    <Canvas onnewrack={handleNewRack} onload={handleLoad} {partyMode} />
+    <Canvas onnewrack={handleNewRack} onload={handleLoad} onplacementcancel={handlePlacementCancel} {partyMode} />
 
     {#if !viewportStore.isMobile}
       <EditPanel />
@@ -731,12 +802,32 @@
       : null}
     {#if device && deviceType}
       <BottomSheet bind:open={bottomSheetOpen} onclose={handleBottomSheetClose}>
-        <DeviceDetails
-          {device}
-          {deviceType}
-          rackView={layoutStore.rack?.view}
-          rackHeight={layoutStore.rack?.height}
-        />
+        <div class="mobile-device-sheet">
+          <DeviceDetails
+            {device}
+            {deviceType}
+            rackView={layoutStore.rack?.view}
+            rackHeight={layoutStore.rack?.height}
+          />
+          <div class="mobile-device-actions">
+            <button
+              type="button"
+              class="mobile-action-btn move-btn"
+              onclick={handleMobileDeviceMove}
+              aria-label="Move device to new position"
+            >
+              Move
+            </button>
+            <button
+              type="button"
+              class="mobile-action-btn remove-btn"
+              onclick={handleMobileDeviceRemove}
+              aria-label="Remove device from rack"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
       </BottomSheet>
     {/if}
   {/if}
@@ -756,7 +847,7 @@
     <!-- Placement mode indicator -->
     {#if placementStore.isActive}
       <div class="mobile-placement-indicator">
-        <PlacementIndicator />
+        <PlacementIndicator oncancel={handlePlacementCancel} />
       </div>
     {/if}
   {/if}
@@ -861,6 +952,55 @@
     left: var(--space-4);
     right: var(--space-4);
     z-index: var(--z-fab, 900);
+  }
+
+  /* Mobile device sheet styles */
+  .mobile-device-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .mobile-device-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-2);
+  }
+
+  .mobile-action-btn {
+    flex: 1;
+    padding: var(--space-3) var(--space-4);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    cursor: pointer;
+    min-height: 48px;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .mobile-action-btn:active {
+    transform: scale(0.98);
+  }
+
+  .mobile-action-btn.move-btn {
+    background: var(--dracula-purple);
+    color: white;
+  }
+
+  .mobile-action-btn.move-btn:hover {
+    background: var(--dracula-purple);
+    filter: brightness(1.1);
+  }
+
+  .mobile-action-btn.remove-btn {
+    background: var(--colour-error-alpha, rgba(255, 85, 85, 0.15));
+    color: var(--colour-error, #ff5555);
+  }
+
+  .mobile-action-btn.remove-btn:hover {
+    background: var(--colour-error, #ff5555);
+    color: white;
   }
 
   /* Note: Mobile overscroll prevention should be in global styles (index.html or app.css) */

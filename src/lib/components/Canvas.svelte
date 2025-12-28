@@ -46,6 +46,8 @@
 				targetPosition: number;
 			}>
 		) => void;
+		/** Called when placement is cancelled via long-press, with original position info for move operations */
+		onplacementcancel?: (originalInfo: { position: number; face: string } | null) => void;
 	}
 
 	let {
@@ -56,7 +58,8 @@
 		ondeviceselect,
 		ondevicedrop,
 		ondevicemove,
-		ondevicemoverack
+		ondevicemoverack,
+		onplacementcancel
 	}: Props = $props();
 
 	const layoutStore = getLayoutStore();
@@ -235,7 +238,8 @@
 		if (canvasContainer && placementStore.isActive) {
 			const cleanup = useLongPress(canvasContainer, () => {
 				debug.log('Long-press on canvas: cancelling placement mode');
-				placementStore.cancelPlacement();
+				const originalInfo = placementStore.cancelPlacement();
+				onplacementcancel?.(originalInfo);
 			});
 			return cleanup;
 		}
