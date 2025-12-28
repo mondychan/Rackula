@@ -1,8 +1,9 @@
-name: Deploy Dev
+name: Deploy Prod
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
@@ -31,7 +32,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -46,8 +49,8 @@ jobs:
     runs-on: [self-hosted, rackula-vps]
 
     steps:
-      - name: Deploy to dev
+      - name: Deploy to prod
         run: |
-          cd /opt/rackula/rackula-dev
+          cd /opt/rackula/rackula-app
           docker compose pull
           docker compose up -d
