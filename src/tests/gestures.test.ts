@@ -7,8 +7,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useLongPress, useSwipeDown, useGestures } from '$lib/utils/gestures';
 
 // Mock Hammer.js
+type GestureHandler = (event: unknown) => void;
 vi.mock('@egjs/hammerjs', () => {
-	const mockHandlers: Map<string, Function[]> = new Map();
+	const mockHandlers: Map<string, GestureHandler[]> = new Map();
 	const mockRecognizers: Map<string, { set: ReturnType<typeof vi.fn> }> = new Map();
 
 	// Create mock recognizers
@@ -16,7 +17,7 @@ vi.mock('@egjs/hammerjs', () => {
 	mockRecognizers.set('pan', { set: vi.fn() });
 
 	const MockHammer = vi.fn().mockImplementation(() => ({
-		on: vi.fn((event: string, handler: Function) => {
+		on: vi.fn((event: string, handler: GestureHandler) => {
 			const handlers = mockHandlers.get(event) || [];
 			handlers.push(handler);
 			mockHandlers.set(event, handlers);
