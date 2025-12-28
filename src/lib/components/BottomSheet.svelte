@@ -3,6 +3,7 @@
   Slide-up modal for mobile device details with swipe-to-dismiss gesture
 -->
 <script lang="ts">
+	import { debug } from '$lib/utils/debug';
 
 	interface Props {
 		open: boolean;
@@ -13,9 +14,25 @@
 	let { open = $bindable(false), onclose, children }: Props = $props();
 
 	let sheetElement: HTMLDivElement | null = $state(null);
+	let containerElement: HTMLDivElement | null = $state(null);
 	let startY = $state(0);
 	let currentY = $state(0);
 	let isDragging = $state(false);
+
+	// Debug: log when sheet opens/closes
+	$effect(() => {
+		debug.log('BottomSheet state:', { open, hasContainer: !!containerElement, hasSheet: !!sheetElement });
+		if (open && containerElement) {
+			// Log computed styles for debugging
+			const containerStyles = window.getComputedStyle(containerElement);
+			debug.log('BottomSheet container computed styles:', {
+				position: containerStyles.position,
+				background: containerStyles.background,
+				backgroundColor: containerStyles.backgroundColor,
+				zIndex: containerStyles.zIndex
+			});
+		}
+	});
 
 	// Transform value for dragging (positive = dragging down)
 	const translateY = $derived(isDragging ? Math.max(0, currentY - startY) : 0);
@@ -97,15 +114,14 @@
 
 {#if open}
 	<div
+		bind:this={containerElement}
 		class="bottom-sheet-container"
 		onclick={handleBackdropClick}
 		onkeydown={(e) => e.key === 'Enter' && handleBackdropClick(e as unknown as MouseEvent)}
 		role="button"
 		tabindex="-1"
 	>
-		<!-- Backdrop -->
-		<div class="backdrop" class:visible={open}></div>
-
+		<!-- Backdrop: using ::before pseudo-element instead for better Safari compatibility -->
 		<!-- Sheet -->
 		<div
 			bind:this={sheetElement}
@@ -141,30 +157,30 @@
 		display: flex;
 		align-items: flex-end;
 		pointer-events: all;
-		/* Explicit transparent background to prevent black fill */
-		background: transparent;
+		/* Safari fix: explicit transparent background and isolation */
+		background: none;
+		background-color: transparent;
+		isolation: isolate;
 	}
 
-	.backdrop {
+	/* Backdrop as pseudo-element for better Safari compatibility */
+	.bottom-sheet-container::before {
+		content: '';
 		position: absolute;
 		inset: 0;
-		/* Use background-color animation instead of opacity for better stacking */
-		background-color: transparent;
-		transition: background-color 0.3s ease;
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.backdrop {
-			transition: none;
-		}
-	}
-
-	.backdrop.visible {
-		background-color: rgba(0, 0, 0, 0.5);
+		/* Safari bug: avoid exact 0.5 - use .50 or 0.49 instead */
+		background-color: rgba(0, 0, 0, .50);
+		/* Ensure backdrop is behind sheet content */
+		z-index: -1;
+		/* iOS Safari: force GPU layer for proper compositing */
+		-webkit-transform: translateZ(0);
+		transform: translateZ(0);
 	}
 
 	.bottom-sheet {
 		position: relative;
+		/* Ensure sheet is above the ::before backdrop */
+		z-index: 1;
 		width: 100%;
 		/* Extend almost to top, leaving space for toolbar (~60px) */
 		max-height: calc(100vh - 60px);
@@ -173,7 +189,8 @@
 		border-top-left-radius: 1rem;
 		border-top-right-radius: 1rem;
 		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-		transform: translateY(100%);
+		transform: translateY(100%) translateZ(0);
+		-webkit-transform: translateY(100%) translateZ(0);
 		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 		touch-action: pan-y;
 		overflow: hidden;
@@ -188,7 +205,8 @@
 	}
 
 	.bottom-sheet.open {
-		transform: translateY(0);
+		transform: translateY(0) translateZ(0);
+		-webkit-transform: translateY(0) translateZ(0);
 	}
 
 	.bottom-sheet.dragging {
