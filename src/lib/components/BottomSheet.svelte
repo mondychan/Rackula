@@ -1,7 +1,7 @@
 <!--
   BottomSheet Component
   Slide-up modal for mobile device details with swipe-to-dismiss gesture
-  Uses native <dialog> element for iOS Safari + Hammer.js for gestures
+  Uses div-based approach for iOS 14 compatibility + Hammer.js for gestures
 -->
 <script lang="ts">
 	import Hammer from '@egjs/hammerjs';
@@ -15,26 +15,13 @@
 
 	let { open = $bindable(false), onclose, children }: Props = $props();
 
-	let dialogElement: HTMLDialogElement | null = $state(null);
+	let containerElement: HTMLDivElement | null = $state(null);
 	let sheetElement: HTMLDivElement | null = $state(null);
 	let dragOffset = $state(0);
 	let isDragging = $state(false);
 
 	// Close threshold: if dragged down more than 100px, close on release
 	const CLOSE_THRESHOLD = 100;
-
-	// Sync dialog open/close with native dialog API
-	$effect(() => {
-		if (!dialogElement) return;
-
-		if (open && !dialogElement.open) {
-			debug.log('BottomSheet: opening dialog via showModal()');
-			dialogElement.showModal();
-		} else if (!open && dialogElement.open) {
-			debug.log('BottomSheet: closing dialog');
-			dialogElement.close();
-		}
-	});
 
 	// Set up Hammer.js for swipe-to-dismiss gesture
 	$effect(() => {
@@ -49,7 +36,6 @@
 
 		hammer.on('panstart', () => {
 			isDragging = true;
-			debug.log('Hammer.js: pan start');
 		});
 
 		hammer.on('panmove', (e: HammerInput) => {
@@ -58,7 +44,6 @@
 		});
 
 		hammer.on('panend', (e: HammerInput) => {
-			debug.log('Hammer.js: pan end', { deltaY: e.deltaY, direction: e.direction });
 			isDragging = false;
 
 			// Close if dragged down past threshold
@@ -82,30 +67,41 @@
 		};
 	});
 
-	// Debug: log computed styles when open
+	// Prevent body scroll when sheet is open (iOS 14 compatible)
 	$effect(() => {
-		debug.log('BottomSheet state:', { open, hasDialog: !!dialogElement, hasSheet: !!sheetElement });
-		if (open && dialogElement) {
-			// Log computed styles for debugging
-			const dialogStyles = window.getComputedStyle(dialogElement);
-			const backdropStyles = window.getComputedStyle(dialogElement, '::backdrop');
-			debug.log('BottomSheet dialog computed styles:', {
-				display: dialogStyles.display,
-				position: dialogStyles.position,
-				background: dialogStyles.background,
-				backgroundColor: dialogStyles.backgroundColor
-			});
-			debug.log('BottomSheet ::backdrop computed styles:', {
-				backgroundColor: backdropStyles.backgroundColor,
-				opacity: backdropStyles.opacity
-			});
+		if (open) {
+			debug.log('BottomSheet: preventing body scroll');
+			const originalOverflow = document.body.style.overflow;
+			const originalPosition = document.body.style.position;
+			const originalTop = document.body.style.top;
+			const scrollY = window.scrollY;
+
+			// iOS Safari scroll lock technique
+			document.body.style.overflow = 'hidden';
+			document.body.style.position = 'fixed';
+			document.body.style.top = `-${scrollY}px`;
+			document.body.style.width = '100%';
+
+			return () => {
+				document.body.style.overflow = originalOverflow;
+				document.body.style.position = originalPosition;
+				document.body.style.top = originalTop;
+				document.body.style.width = '';
+				window.scrollTo(0, scrollY);
+			};
 		}
 	});
 
-	// Handle clicks on the dialog backdrop (outside the sheet content)
-	function handleDialogClick(event: MouseEvent) {
-		// Close if clicking directly on dialog (the backdrop area)
-		if (event.target === dialogElement) {
+	// Handle Escape key
+	function handleKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && open) {
+			closeSheet();
+		}
+	}
+
+	// Handle backdrop click
+	function handleBackdropClick(event: MouseEvent) {
+		if (event.target === containerElement) {
 			closeSheet();
 		}
 	}
@@ -114,110 +110,91 @@
 		open = false;
 		onclose?.();
 	}
-
-	// Handle native dialog close event (e.g., Escape key)
-	function handleDialogClose() {
-		if (open) {
-			open = false;
-			onclose?.();
-		}
-	}
-
-	// Note: Escape key and body scroll prevention are handled natively by <dialog>
 </script>
 
-<!-- Native dialog element - always rendered but controlled via showModal()/close() -->
-<dialog
-	bind:this={dialogElement}
-	class="bottom-sheet-dialog"
-	onclick={handleDialogClick}
-	onclose={handleDialogClose}
->
-	<!-- Sheet content wrapper - Hammer.js handles gestures -->
-	<div
-		bind:this={sheetElement}
-		class="bottom-sheet"
-		class:open
-		class:dragging={isDragging}
-		style:transform={dragOffset > 0 ? `translateY(${dragOffset}px)` : ''}
-	>
-		<!-- Drag handle -->
-		<div class="drag-handle">
-			<div class="drag-handle-bar"></div>
-		</div>
+<svelte:window onkeydown={handleKeyDown} />
 
-		<!-- Content -->
-		<div class="sheet-content">
-			{@render children?.()}
+{#if open}
+	<!-- Div-based modal for iOS 14 compatibility -->
+	<div
+		bind:this={containerElement}
+		class="bottom-sheet-container"
+		onclick={handleBackdropClick}
+		role="dialog"
+		aria-modal="true"
+	>
+		<!-- Backdrop - separate div for reliable rendering on iOS 14 -->
+		<div class="backdrop"></div>
+
+		<!-- Sheet content wrapper - Hammer.js handles gestures -->
+		<div
+			bind:this={sheetElement}
+			class="bottom-sheet"
+			class:dragging={isDragging}
+			style:transform={dragOffset > 0 ? `translateY(${dragOffset}px)` : ''}
+		>
+			<!-- Drag handle -->
+			<div class="drag-handle">
+				<div class="drag-handle-bar"></div>
+			</div>
+
+			<!-- Content -->
+			<div class="sheet-content">
+				{@render children?.()}
+			</div>
 		</div>
 	</div>
-</dialog>
+{/if}
 
 <style>
-	/* Native dialog element styling */
-	.bottom-sheet-dialog {
-		/* Reset default dialog styles */
-		padding: 0;
-		border: none;
-		/* Position at bottom of viewport */
+	/* Container covers full screen */
+	.bottom-sheet-container {
 		position: fixed;
-		inset: auto 0 0 0;
-		margin: 0;
-		/* Full width, max height from bottom */
-		width: 100%;
-		max-width: 100%;
-		max-height: calc(100vh - 60px);
-		max-height: calc(100dvh - 60px);
-		/* Transparent background - the sheet provides the visual */
-		background: transparent;
-		/* High z-index for modal layer */
+		inset: 0;
 		z-index: 1000;
-		/* Allow overscroll containment for iOS */
-		overscroll-behavior: contain;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		/* Pointer events on container for backdrop click */
+		pointer-events: auto;
 	}
 
-	/* Native ::backdrop pseudo-element */
-	.bottom-sheet-dialog::backdrop {
-		/* Use hardcoded value, not CSS variable (iOS Safari bug) */
-		background-color: rgba(0, 0, 0, 0.50);
-		/* Ensure it's visible */
-		opacity: 1;
+	/* Backdrop - separate element for iOS 14 compatibility */
+	.backdrop {
+		position: absolute;
+		inset: 0;
+		/* Hardcoded rgba - iOS 14 doesn't support CSS vars in some contexts */
+		background-color: rgba(0, 0, 0, 0.5);
+		/* Explicit pointer events */
+		pointer-events: none;
 	}
 
 	/* Sheet content wrapper */
 	.bottom-sheet {
 		position: relative;
+		z-index: 1;
 		width: 100%;
-		height: auto;
 		max-height: calc(100vh - 60px);
 		max-height: calc(100dvh - 60px);
-		background: var(--colour-bg);
+		background: var(--colour-bg, #282a36);
 		border-top-left-radius: 1rem;
 		border-top-right-radius: 1rem;
-		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-		/* Animation: slide up from bottom */
-		transform: translateY(100%);
-		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+		/* Start visible (no animation needed since conditionally rendered) */
+		transform: translateY(0);
+		transition: transform 0.15s ease-out;
 		touch-action: pan-y;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-	}
-
-	/* Dialog is open - slide sheet into view */
-	.bottom-sheet-dialog[open] .bottom-sheet {
-		transform: translateY(0);
+		/* Ensure sheet receives pointer events */
+		pointer-events: auto;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
 		.bottom-sheet {
 			transition: none;
 		}
-	}
-
-	/* Legacy classes for animation state (if needed) */
-	.bottom-sheet.open {
-		transform: translateY(0);
 	}
 
 	.bottom-sheet.dragging {
