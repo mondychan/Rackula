@@ -1,9 +1,10 @@
 <!--
   BottomSheet Component
   Slide-up modal for mobile device details with swipe-to-dismiss gesture
-  Uses native <dialog> element for better iOS Safari compatibility
+  Uses native <dialog> element for iOS Safari + Hammer.js for gestures
 -->
 <script lang="ts">
+	import Hammer from '@egjs/hammerjs';
 	import { debug } from '$lib/utils/debug';
 
 	interface Props {
@@ -16,9 +17,11 @@
 
 	let dialogElement: HTMLDialogElement | null = $state(null);
 	let sheetElement: HTMLDivElement | null = $state(null);
-	let startY = $state(0);
-	let currentY = $state(0);
+	let dragOffset = $state(0);
 	let isDragging = $state(false);
+
+	// Close threshold: if dragged down more than 100px, close on release
+	const CLOSE_THRESHOLD = 100;
 
 	// Sync dialog open/close with native dialog API
 	$effect(() => {
@@ -31,6 +34,52 @@
 			debug.log('BottomSheet: closing dialog');
 			dialogElement.close();
 		}
+	});
+
+	// Set up Hammer.js for swipe-to-dismiss gesture
+	$effect(() => {
+		if (!sheetElement || !open) return;
+
+		debug.log('BottomSheet: setting up Hammer.js pan gesture');
+		const hammer = new Hammer(sheetElement, {
+			recognizers: [
+				[Hammer.Pan, { direction: Hammer.DIRECTION_VERTICAL }]
+			]
+		});
+
+		hammer.on('panstart', () => {
+			isDragging = true;
+			debug.log('Hammer.js: pan start');
+		});
+
+		hammer.on('panmove', (e: HammerInput) => {
+			// Only allow dragging down (positive deltaY)
+			dragOffset = Math.max(0, e.deltaY);
+		});
+
+		hammer.on('panend', (e: HammerInput) => {
+			debug.log('Hammer.js: pan end', { deltaY: e.deltaY, direction: e.direction });
+			isDragging = false;
+
+			// Close if dragged down past threshold
+			if (e.deltaY > CLOSE_THRESHOLD && e.direction === Hammer.DIRECTION_DOWN) {
+				debug.log('BottomSheet: swipe-to-dismiss triggered');
+				closeSheet();
+			}
+
+			// Reset offset
+			dragOffset = 0;
+		});
+
+		hammer.on('pancancel', () => {
+			isDragging = false;
+			dragOffset = 0;
+		});
+
+		return () => {
+			debug.log('BottomSheet: cleaning up Hammer.js');
+			hammer.destroy();
+		};
 	});
 
 	// Debug: log computed styles when open
@@ -53,12 +102,6 @@
 		}
 	});
 
-	// Transform value for dragging (positive = dragging down)
-	const translateY = $derived(isDragging ? Math.max(0, currentY - startY) : 0);
-
-	// Close threshold: if dragged down more than 100px, close on release
-	const CLOSE_THRESHOLD = 100;
-
 	// Handle clicks on the dialog backdrop (outside the sheet content)
 	function handleDialogClick(event: MouseEvent) {
 		// Close if clicking directly on dialog (the backdrop area)
@@ -80,45 +123,6 @@
 		}
 	}
 
-	// Swipe-to-dismiss gesture handlers
-	function handlePointerDown(event: PointerEvent) {
-		// Only handle touch/pen events on the sheet itself
-		if (event.pointerType === 'mouse') return;
-
-		startY = event.clientY;
-		currentY = event.clientY;
-		isDragging = true;
-
-		// Capture pointer for smooth tracking
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-	}
-
-	function handlePointerMove(event: PointerEvent) {
-		if (!isDragging) return;
-		currentY = event.clientY;
-	}
-
-	function handlePointerUp(event: PointerEvent) {
-		if (!isDragging) return;
-
-		const dragDistance = currentY - startY;
-
-		// Close if dragged down past threshold
-		if (dragDistance > CLOSE_THRESHOLD) {
-			closeSheet();
-		}
-
-		isDragging = false;
-		(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
-	}
-
-	function handlePointerCancel(event: PointerEvent) {
-		isDragging = false;
-		if (event.currentTarget) {
-			(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
-		}
-	}
-
 	// Note: Escape key and body scroll prevention are handled natively by <dialog>
 </script>
 
@@ -129,17 +133,13 @@
 	onclick={handleDialogClick}
 	onclose={handleDialogClose}
 >
-	<!-- Sheet content wrapper -->
+	<!-- Sheet content wrapper - Hammer.js handles gestures -->
 	<div
 		bind:this={sheetElement}
 		class="bottom-sheet"
 		class:open
 		class:dragging={isDragging}
-		style:transform={isDragging ? `translateY(${translateY}px)` : ''}
-		onpointerdown={handlePointerDown}
-		onpointermove={handlePointerMove}
-		onpointerup={handlePointerUp}
-		onpointercancel={handlePointerCancel}
+		style:transform={dragOffset > 0 ? `translateY(${dragOffset}px)` : ''}
 	>
 		<!-- Drag handle -->
 		<div class="drag-handle">
