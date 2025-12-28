@@ -141,14 +141,16 @@
 		display: flex;
 		align-items: flex-end;
 		pointer-events: all;
+		/* Explicit transparent background to prevent black fill */
+		background: transparent;
 	}
 
 	.backdrop {
 		position: absolute;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
-		opacity: 0;
-		transition: opacity 0.3s ease;
+		/* Use background-color animation instead of opacity for better stacking */
+		background-color: transparent;
+		transition: background-color 0.3s ease;
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -158,7 +160,7 @@
 	}
 
 	.backdrop.visible {
-		opacity: 1;
+		background-color: rgba(0, 0, 0, 0.5);
 	}
 
 	.bottom-sheet {
