@@ -19,18 +19,53 @@
 	let currentY = $state(0);
 	let isDragging = $state(false);
 
-	// Debug: log when sheet opens/closes
+	// Debug: log when sheet opens/closes and DOM structure
 	$effect(() => {
 		debug.log('BottomSheet state:', { open, hasContainer: !!containerElement, hasSheet: !!sheetElement });
 		if (open && containerElement) {
 			// Log computed styles for debugging
 			const containerStyles = window.getComputedStyle(containerElement);
+			const beforeStyles = window.getComputedStyle(containerElement, '::before');
 			debug.log('BottomSheet container computed styles:', {
 				position: containerStyles.position,
 				background: containerStyles.background,
 				backgroundColor: containerStyles.backgroundColor,
-				zIndex: containerStyles.zIndex
+				zIndex: containerStyles.zIndex,
+				isolation: containerStyles.isolation
 			});
+			debug.log('BottomSheet ::before (backdrop) computed styles:', {
+				content: beforeStyles.content,
+				position: beforeStyles.position,
+				backgroundColor: beforeStyles.backgroundColor,
+				zIndex: beforeStyles.zIndex,
+				inset: beforeStyles.inset
+			});
+
+			// Log parent element info
+			const appMain = document.querySelector('.app-main');
+			const canvas = document.querySelector('.canvas');
+			if (appMain) {
+				const mainStyles = window.getComputedStyle(appMain);
+				debug.log('.app-main styles:', {
+					display: mainStyles.display,
+					position: mainStyles.position,
+					zIndex: mainStyles.zIndex,
+					visibility: mainStyles.visibility,
+					opacity: mainStyles.opacity
+				});
+			}
+			if (canvas) {
+				const canvasStyles = window.getComputedStyle(canvas);
+				debug.log('.canvas styles:', {
+					display: canvasStyles.display,
+					position: canvasStyles.position,
+					zIndex: canvasStyles.zIndex,
+					visibility: canvasStyles.visibility,
+					opacity: canvasStyles.opacity,
+					background: canvasStyles.background,
+					backgroundColor: canvasStyles.backgroundColor
+				});
+			}
 		}
 	});
 
