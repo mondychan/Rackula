@@ -1,6 +1,7 @@
 <!--
   BottomSheet Component
   Slide-up modal for mobile device details with swipe-to-dismiss gesture
+  Uses native <dialog> element for better iOS Safari compatibility
 -->
 <script lang="ts">
 	import { debug } from '$lib/utils/debug';
@@ -13,59 +14,42 @@
 
 	let { open = $bindable(false), onclose, children }: Props = $props();
 
+	let dialogElement: HTMLDialogElement | null = $state(null);
 	let sheetElement: HTMLDivElement | null = $state(null);
-	let containerElement: HTMLDivElement | null = $state(null);
 	let startY = $state(0);
 	let currentY = $state(0);
 	let isDragging = $state(false);
 
-	// Debug: log when sheet opens/closes and DOM structure
+	// Sync dialog open/close with native dialog API
 	$effect(() => {
-		debug.log('BottomSheet state:', { open, hasContainer: !!containerElement, hasSheet: !!sheetElement });
-		if (open && containerElement) {
-			// Log computed styles for debugging
-			const containerStyles = window.getComputedStyle(containerElement);
-			const beforeStyles = window.getComputedStyle(containerElement, '::before');
-			debug.log('BottomSheet container computed styles:', {
-				position: containerStyles.position,
-				background: containerStyles.background,
-				backgroundColor: containerStyles.backgroundColor,
-				zIndex: containerStyles.zIndex,
-				isolation: containerStyles.isolation
-			});
-			debug.log('BottomSheet ::before (backdrop) computed styles:', {
-				content: beforeStyles.content,
-				position: beforeStyles.position,
-				backgroundColor: beforeStyles.backgroundColor,
-				zIndex: beforeStyles.zIndex,
-				inset: beforeStyles.inset
-			});
+		if (!dialogElement) return;
 
-			// Log parent element info
-			const appMain = document.querySelector('.app-main');
-			const canvas = document.querySelector('.canvas');
-			if (appMain) {
-				const mainStyles = window.getComputedStyle(appMain);
-				debug.log('.app-main styles:', {
-					display: mainStyles.display,
-					position: mainStyles.position,
-					zIndex: mainStyles.zIndex,
-					visibility: mainStyles.visibility,
-					opacity: mainStyles.opacity
-				});
-			}
-			if (canvas) {
-				const canvasStyles = window.getComputedStyle(canvas);
-				debug.log('.canvas styles:', {
-					display: canvasStyles.display,
-					position: canvasStyles.position,
-					zIndex: canvasStyles.zIndex,
-					visibility: canvasStyles.visibility,
-					opacity: canvasStyles.opacity,
-					background: canvasStyles.background,
-					backgroundColor: canvasStyles.backgroundColor
-				});
-			}
+		if (open && !dialogElement.open) {
+			debug.log('BottomSheet: opening dialog via showModal()');
+			dialogElement.showModal();
+		} else if (!open && dialogElement.open) {
+			debug.log('BottomSheet: closing dialog');
+			dialogElement.close();
+		}
+	});
+
+	// Debug: log computed styles when open
+	$effect(() => {
+		debug.log('BottomSheet state:', { open, hasDialog: !!dialogElement, hasSheet: !!sheetElement });
+		if (open && dialogElement) {
+			// Log computed styles for debugging
+			const dialogStyles = window.getComputedStyle(dialogElement);
+			const backdropStyles = window.getComputedStyle(dialogElement, '::backdrop');
+			debug.log('BottomSheet dialog computed styles:', {
+				display: dialogStyles.display,
+				position: dialogStyles.position,
+				background: dialogStyles.background,
+				backgroundColor: dialogStyles.backgroundColor
+			});
+			debug.log('BottomSheet ::backdrop computed styles:', {
+				backgroundColor: backdropStyles.backgroundColor,
+				opacity: backdropStyles.opacity
+			});
 		}
 	});
 
@@ -75,8 +59,10 @@
 	// Close threshold: if dragged down more than 100px, close on release
 	const CLOSE_THRESHOLD = 100;
 
-	function handleBackdropClick(event: MouseEvent) {
-		if (event.target === event.currentTarget) {
+	// Handle clicks on the dialog backdrop (outside the sheet content)
+	function handleDialogClick(event: MouseEvent) {
+		// Close if clicking directly on dialog (the backdrop area)
+		if (event.target === dialogElement) {
 			closeSheet();
 		}
 	}
@@ -84,6 +70,14 @@
 	function closeSheet() {
 		open = false;
 		onclose?.();
+	}
+
+	// Handle native dialog close event (e.g., Escape key)
+	function handleDialogClose() {
+		if (open) {
+			open = false;
+			onclose?.();
+		}
 	}
 
 	// Swipe-to-dismiss gesture handlers
@@ -125,112 +119,94 @@
 		}
 	}
 
-	// Handle Escape key to close
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && open) {
-			closeSheet();
-		}
-	}
-
-	// Prevent body scroll when sheet is open
-	$effect(() => {
-		if (open) {
-			const originalOverflow = document.body.style.overflow;
-			document.body.style.overflow = 'hidden';
-
-			return () => {
-				document.body.style.overflow = originalOverflow;
-			};
-		}
-	});
+	// Note: Escape key and body scroll prevention are handled natively by <dialog>
 </script>
 
-<svelte:window onkeydown={handleKeyDown} />
-
-{#if open}
+<!-- Native dialog element - always rendered but controlled via showModal()/close() -->
+<dialog
+	bind:this={dialogElement}
+	class="bottom-sheet-dialog"
+	onclick={handleDialogClick}
+	onclose={handleDialogClose}
+>
+	<!-- Sheet content wrapper -->
 	<div
-		bind:this={containerElement}
-		class="bottom-sheet-container"
-		onclick={handleBackdropClick}
-		onkeydown={(e) => e.key === 'Enter' && handleBackdropClick(e as unknown as MouseEvent)}
-		role="button"
-		tabindex="-1"
+		bind:this={sheetElement}
+		class="bottom-sheet"
+		class:open
+		class:dragging={isDragging}
+		style:transform={isDragging ? `translateY(${translateY}px)` : ''}
+		onpointerdown={handlePointerDown}
+		onpointermove={handlePointerMove}
+		onpointerup={handlePointerUp}
+		onpointercancel={handlePointerCancel}
 	>
-		<!-- Backdrop: using ::before pseudo-element instead for better Safari compatibility -->
-		<!-- Sheet -->
-		<div
-			bind:this={sheetElement}
-			class="bottom-sheet"
-			class:open
-			class:dragging={isDragging}
-			style:transform={isDragging ? `translateY(${translateY}px)` : ''}
-			role="dialog"
-			aria-modal="true"
-			onpointerdown={handlePointerDown}
-			onpointermove={handlePointerMove}
-			onpointerup={handlePointerUp}
-			onpointercancel={handlePointerCancel}
-		>
-			<!-- Drag handle -->
-			<div class="drag-handle">
-				<div class="drag-handle-bar"></div>
-			</div>
+		<!-- Drag handle -->
+		<div class="drag-handle">
+			<div class="drag-handle-bar"></div>
+		</div>
 
-			<!-- Content -->
-			<div class="sheet-content">
-				{@render children?.()}
-			</div>
+		<!-- Content -->
+		<div class="sheet-content">
+			{@render children?.()}
 		</div>
 	</div>
-{/if}
+</dialog>
 
 <style>
-	.bottom-sheet-container {
+	/* Native dialog element styling */
+	.bottom-sheet-dialog {
+		/* Reset default dialog styles */
+		padding: 0;
+		border: none;
+		/* Position at bottom of viewport */
 		position: fixed;
-		inset: 0;
+		inset: auto 0 0 0;
+		margin: 0;
+		/* Full width, max height from bottom */
+		width: 100%;
+		max-width: 100%;
+		max-height: calc(100vh - 60px);
+		max-height: calc(100dvh - 60px);
+		/* Transparent background - the sheet provides the visual */
+		background: transparent;
+		/* High z-index for modal layer */
 		z-index: 1000;
-		display: flex;
-		align-items: flex-end;
-		pointer-events: all;
-		/* Safari fix: explicit transparent background and isolation */
-		background: none;
-		background-color: transparent;
-		isolation: isolate;
+		/* Allow overscroll containment for iOS */
+		overscroll-behavior: contain;
 	}
 
-	/* Backdrop as pseudo-element for better Safari compatibility */
-	.bottom-sheet-container::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		/* Safari bug: avoid exact 0.5 - use .50 or 0.49 instead */
-		background-color: rgba(0, 0, 0, .50);
-		/* Ensure backdrop is behind sheet content */
-		z-index: -1;
-		/* iOS Safari: force GPU layer for proper compositing */
-		-webkit-transform: translateZ(0);
-		transform: translateZ(0);
+	/* Native ::backdrop pseudo-element */
+	.bottom-sheet-dialog::backdrop {
+		/* Use hardcoded value, not CSS variable (iOS Safari bug) */
+		background-color: rgba(0, 0, 0, 0.50);
+		/* Ensure it's visible */
+		opacity: 1;
 	}
 
+	/* Sheet content wrapper */
 	.bottom-sheet {
 		position: relative;
-		/* Ensure sheet is above the ::before backdrop */
-		z-index: 1;
 		width: 100%;
-		/* Extend almost to top, leaving space for toolbar (~60px) */
+		height: auto;
 		max-height: calc(100vh - 60px);
 		max-height: calc(100dvh - 60px);
 		background: var(--colour-bg);
 		border-top-left-radius: 1rem;
 		border-top-right-radius: 1rem;
 		box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-		transform: translateY(100%) translateZ(0);
-		-webkit-transform: translateY(100%) translateZ(0);
+		/* Animation: slide up from bottom */
+		transform: translateY(100%);
 		transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 		touch-action: pan-y;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
+	}
+
+	/* Dialog is open - slide sheet into view */
+	.bottom-sheet-dialog[open] .bottom-sheet {
+		transform: translateY(0);
 	}
 
 	@media (prefers-reduced-motion: reduce) {
@@ -239,9 +215,9 @@
 		}
 	}
 
+	/* Legacy classes for animation state (if needed) */
 	.bottom-sheet.open {
-		transform: translateY(0) translateZ(0);
-		-webkit-transform: translateY(0) translateZ(0);
+		transform: translateY(0);
 	}
 
 	.bottom-sheet.dragging {
