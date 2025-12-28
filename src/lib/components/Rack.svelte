@@ -974,9 +974,4 @@
 	.rack-svg.placement-mode {
 		cursor: crosshair;
 	}
-
-	.rack-svg.placement-mode .rack-interior {
-		fill: var(--colour-dnd-valid-bg);
-		transition: fill var(--duration-fast) var(--ease-out);
-	}
 </style>
