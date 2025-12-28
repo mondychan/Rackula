@@ -35,7 +35,7 @@
 		position: fixed;
 		bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
 		right: var(--space-6);
-		z-index: var(--z-fab, 900);
+		z-index: var(--z-fab);
 
 		display: flex;
 		align-items: center;

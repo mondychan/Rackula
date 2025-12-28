@@ -945,13 +945,13 @@
     overscroll-behavior: none;
   }
 
-  /* Mobile placement mode indicator - fixed at bottom of screen above FAB position */
+  /* Mobile placement mode indicator - fixed at top of screen below toolbar */
   .mobile-placement-indicator {
     position: fixed;
-    bottom: calc(var(--space-6) + 56px + var(--space-4) + env(safe-area-inset-bottom, 0px));
+    top: calc(60px + var(--space-2));
     left: var(--space-4);
     right: var(--space-4);
-    z-index: var(--z-fab, 900);
+    z-index: var(--z-fab);
   }
 
   /* Mobile device sheet styles */

@@ -15,7 +15,6 @@
 
 	let { open = $bindable(false), onclose, children }: Props = $props();
 
-	let containerElement: HTMLDivElement | null = $state(null);
 	let sheetElement: HTMLDivElement | null = $state(null);
 	let dragOffset = $state(0);
 	let isDragging = $state(false);
@@ -67,27 +66,17 @@
 		};
 	});
 
-	// Prevent body scroll when sheet is open (iOS 14 compatible)
+	// Prevent body scroll when sheet is open (simplified - no position:fixed trick)
 	$effect(() => {
 		if (open) {
 			debug.log('BottomSheet: preventing body scroll');
 			const originalOverflow = document.body.style.overflow;
-			const originalPosition = document.body.style.position;
-			const originalTop = document.body.style.top;
-			const scrollY = window.scrollY;
 
-			// iOS Safari scroll lock technique
+			// Simple overflow hidden - avoids layout disruption
 			document.body.style.overflow = 'hidden';
-			document.body.style.position = 'fixed';
-			document.body.style.top = `-${scrollY}px`;
-			document.body.style.width = '100%';
 
 			return () => {
 				document.body.style.overflow = originalOverflow;
-				document.body.style.position = originalPosition;
-				document.body.style.top = originalTop;
-				document.body.style.width = '';
-				window.scrollTo(0, scrollY);
 			};
 		}
 	});
@@ -99,12 +88,6 @@
 		}
 	}
 
-	// Handle backdrop click
-	function handleBackdropClick(event: MouseEvent) {
-		if (event.target === containerElement) {
-			closeSheet();
-		}
-	}
 
 	function closeSheet() {
 		open = false;
@@ -115,17 +98,12 @@
 <svelte:window onkeydown={handleKeyDown} />
 
 {#if open}
-	<!-- Div-based modal for iOS 14 compatibility -->
+	<!-- Div-based modal for iOS 14 compatibility - no backdrop overlay -->
 	<div
-		bind:this={containerElement}
 		class="bottom-sheet-container"
-		onclick={handleBackdropClick}
 		role="dialog"
 		aria-modal="true"
 	>
-		<!-- Backdrop - separate div for reliable rendering on iOS 14 -->
-		<div class="backdrop"></div>
-
 		<!-- Sheet content wrapper - Hammer.js handles gestures -->
 		<div
 			bind:this={sheetElement}
@@ -147,32 +125,22 @@
 {/if}
 
 <style>
-	/* Container covers full screen */
+	/* Container anchored to bottom - no full-viewport coverage */
 	.bottom-sheet-container {
 		position: fixed;
-		inset: 0;
-		z-index: 1000;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: var(--z-modal, 200);
 		display: flex;
 		flex-direction: column;
 		justify-content: flex-end;
-		/* Pointer events on container for backdrop click */
-		pointer-events: auto;
-	}
-
-	/* Backdrop - separate element for iOS 14 compatibility */
-	.backdrop {
-		position: absolute;
-		inset: 0;
-		/* Hardcoded rgba - iOS 14 doesn't support CSS vars in some contexts */
-		background-color: rgba(0, 0, 0, 0.5);
-		/* Explicit pointer events */
 		pointer-events: none;
 	}
 
 	/* Sheet content wrapper */
 	.bottom-sheet {
 		position: relative;
-		z-index: 1;
 		width: 100%;
 		max-height: calc(100vh - 60px);
 		max-height: calc(100dvh - 60px);
