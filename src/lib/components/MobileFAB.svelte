@@ -46,9 +46,10 @@
 		border: none;
 		border-radius: 50%;
 
-		background: var(--colour-primary);
-		color: var(--colour-text-on-primary, white);
+		background: var(--dracula-purple);
+		color: white;
 		box-shadow:
+			var(--glow-purple-sm),
 			0 4px 12px rgba(0, 0, 0, 0.25),
 			0 2px 4px rgba(0, 0, 0, 0.15);
 
@@ -76,9 +77,10 @@
 	.mobile-fab:focus {
 		outline: none;
 		box-shadow:
+			var(--glow-purple-md),
 			0 4px 12px rgba(0, 0, 0, 0.25),
 			0 2px 4px rgba(0, 0, 0, 0.15),
-			0 0 0 3px var(--colour-primary-alpha, rgba(139, 92, 246, 0.4));
+			0 0 0 3px rgba(189, 147, 249, 0.4);
 	}
 
 	/* Respect reduced motion preference */
